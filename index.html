@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的家族</title>
+    <style>
+        /* 一些简单的样式让它好看点 */
+        body { font-family: 'Segoe UI', sans-serif; background: #f5f0eb; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .card { background: white; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 16px; cursor: pointer; transition: 0.2s; }
+        .card:hover { transform: scale(1.01); box-shadow: 0 6px 16px rgba(0,0,0,0.1); }
+        .avatar { width: 60px; height: 60px; border-radius: 50%; background: #d9c8b2; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #6b4f3c; font-weight: bold; overflow: hidden; }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .info h3 { margin: 0; color: #3d2c1e; }
+        .info p { margin: 4px 0 0; color: #7f6a58; font-size: 14px; }
+        .btn { background: #8b6f50; color: white; border: none; padding: 12px 24px; border-radius: 30px; font-size: 16px; width: 100%; cursor: pointer; margin-bottom: 20px; }
+        .btn:hover { background: #6f563c; }
+        /* 详情弹窗 */
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); justify-content: center; align-items: center; }
+        .modal-content { background: white; max-width: 400px; width: 90%; padding: 24px; border-radius: 24px; max-height: 80%; overflow-y: auto; }
+        .modal img { width: 100%; max-height: 300px; object-fit: contain; border-radius: 12px; margin: 12px 0; }
+        input, textarea { width: 100%; padding: 10px; margin: 6px 0 12px; border: 1px solid #ddd; border-radius: 10px; font-family: inherit; box-sizing: border-box; }
+        .row { display: flex; gap: 10px; }
+        .row button { flex: 1; }
+    </style>
+</head>
+<body>
+
+<h2>👨‍👩‍👧‍👦 我的族谱</h2>
+<button class="btn" onclick="showAdd()">➕ 添加成员</button>
+<div id="list"></div>
+
+<!-- 详情/编辑弹窗 -->
+<div id="modal" class="modal" onclick="if(event.target===this) closeModal()">
+    <div class="modal-content">
+        <h3 id="modalTitle">成员详情</h3>
+        <div id="detailContent"></div>
+        <div id="editArea" style="display:none;">
+            <label>姓名</label><input id="editName" />
+            <label>生平简介</label><textarea id="editBio" rows="3"></textarea>
+            <label>头像链接（图片URL）</label><input id="editImg" placeholder="粘贴图片网址" />
+            <div class="row">
+                <button class="btn" onclick="saveEdit()" style="background:#4CAF50;">💾 保存</button>
+                <button class="btn" onclick="cancelEdit()" style="background:#999;">取消</button>
+            </div>
+        </div>
+        <button class="btn" onclick="enableEdit()" style="background:#3d7ea6;">✏️ 修改信息</button>
+        <button class="btn" onclick="closeModal()" style="background:#ccc; color:#333;">关闭</button>
+    </div>
+</div>
+
+<script>
+    // ---------- 数据 ----------
+    let members = [];
+    let currentId = null; // 当前查看的成员ID
+
+    // 初始示例数据
+    function initData() {
+        if (localStorage.getItem('members')) {
+            members = JSON.parse(localStorage.getItem('members'));
+        } else {
+            members = [
+                { id: 1, name: '张德厚', bio: '家族始祖，乐善好施。', img: '' },
+                { id: 2, name: '张明义', bio: '第二代传人，教书先生。', img: '' }
+            ];
+            saveData();
+        }
+        render();
+    }
+
+    function saveData() {
+        localStorage.setItem('members', JSON.stringify(members));
+    }
+
+    // ---------- 渲染列表 ----------
+    function render() {
+        const list = document.getElementById('list');
+        list.innerHTML = members.map(m => `
+            <div class="card" onclick="viewDetail(${m.id})">
+                <div class="avatar">
+                    ${m.img ? `< img src="${m.img}" />` : m.name[0]}
+                </div>
+                <div class="info">
+                    <h3>${m.name}</h3>
+                    <p>${m.bio ? m.bio.substring(0, 15) + '...' : '暂无简介'}</p >
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // ---------- 添加成员 ----------
+    function showAdd() {
+        const name = prompt('请输入成员姓名：');
+        if (!name) return;
+        const newId = members.length ? Math.max(...members.map(m => m.id)) + 1 : 1;
+        members.push({ id: newId, name, bio: '暂无生平', img: '' });
+        saveData();
+        render();
+    }
+
+    // ---------- 查看详情 ----------
+    function viewDetail(id) {
+        currentId = id;
+        const m = members.find(x => x.id === id);
+        if (!m) return;
+        document.getElementById('modalTitle').innerText = m.name;
+        document.getElementById('detailContent').innerHTML = `
+            ${m.img ? `< img src="${m.img}" />` : '<div style="background:#eee;padding:40px;text-align:center;border-radius:12px;">📷 暂无照片</div>'}
+            <p><strong>生平：</strong>${m.bio || '暂无'}</p >
+        `;
+        document.getElementById('editArea').style.display = 'none';
+        document.getElementById('modal').style.display = 'flex';
+    }
+
+    // ---------- 编辑功能 ----------
+    let isEditMode = false;
+    function enableEdit() {
+        isEditMode = true;
+        const m = members.find(x => x.id === currentId);
+        if (!m) return;
+        document.getElementById('editName').value = m.name;
+        document.getElementById('editBio').value = m.bio || '';
+        document.getElementById('editImg').value = m.img || '';
+        document.getElementById('editArea').style.display = 'block';
+        document.getElementById('detailContent').style.display = 'none';
+    }
+
+    function cancelEdit() {
+        document.getElementById('editArea').style.display = 'none';
+        document.getElementById('detailContent').style.display = 'block';
+        // 重新加载详情
+        viewDetail(currentId);
+    }
+
+    function saveEdit() {
+        const m = members.find(x => x.id === currentId);
+        if (!m) return;
+        const newName = document.getElementById('editName').value.trim();
+        if (!newName) { alert('姓名不能为空'); return; }
+        m.name = newName;
+        m.bio = document.getElementById('editBio').value.trim();
+        m.img = document.getElementById('editImg').value.trim();
+        saveData();
+        render();
+        // 刷新详情
+        document.getElementById('editArea').style.display = 'none';
+        document.getElementById('detailContent').style.display = 'block';
+        viewDetail(currentId);
+    }
+
+    function closeModal() {
+        document.getElementById('modal').style.display = 'none';
+        isEditMode = false;
+    }
+
+    // 启动
+    initData();
+</script>
+</body>
+</html>
